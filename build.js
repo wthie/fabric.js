@@ -12,8 +12,8 @@ buildArgs.forEach(function(arg) {
   buildArgsAsObject[key] = value;
 });
 
-var modulesToInclude = buildArgsAsObject.modules ? buildArgsAsObject.modules.split(',') : [ ];
-var modulesToExclude = buildArgsAsObject.exclude ? buildArgsAsObject.exclude.split(',') : [ ];
+var modulesToInclude = buildArgsAsObject.modules ? buildArgsAsObject.modules.split(',') : [];
+var modulesToExclude = buildArgsAsObject.exclude ? buildArgsAsObject.exclude.split(',') : [];
 
 var distributionPath = buildArgsAsObject.dest || 'dist/';
 var minifier = buildArgsAsObject.minifier || 'uglifyjs';
@@ -21,10 +21,9 @@ var mininfierCmd;
 
 var noStrict = 'no-strict' in buildArgsAsObject;
 var noSVGExport = 'no-svg-export' in buildArgsAsObject;
-var noES5Compat = 'no-es5-compat' in buildArgsAsObject;
 var requirejs = 'requirejs' in buildArgsAsObject ? 'requirejs' : false;
 var sourceMap = 'sourcemap' in buildArgsAsObject;
-
+var buildFast = 'fast' in buildArgsAsObject;
 // set amdLib var to encourage later support of other AMD systems
 var amdLib = requirejs;
 
@@ -56,7 +55,6 @@ else if (minifier === 'uglifyjs') {
   mininfierCmd = 'uglifyjs ' + amdUglifyFlags + ' --compress --mangle --output fabric.min.js fabric.js' + sourceMapFlags;
 }
 
-var buildSh = 'build-sh' in buildArgsAsObject;
 var buildMinified = 'build-minified' in buildArgsAsObject;
 
 var includeAllModules = (modulesToInclude.length === 1 && modulesToInclude[0] === 'ALL') || buildMinified;
@@ -69,7 +67,6 @@ var distFileContents =
     (modulesToExclude.length ? (' exclude=' + modulesToExclude.join(',')) : '') +
     (noStrict ? ' no-strict' : '') +
     (noSVGExport ? ' no-svg-export' : '') +
-    (noES5Compat ? ' no-es5-compat' : '') +
     (requirejs ? ' requirejs' : '') +
     (sourceMap ? ' sourcemap' : '') +
     ' minifier=' + minifier +
@@ -98,9 +95,6 @@ function appendFileContents(fileNames, callback) {
       if (noSVGExport) {
         strData = strData.replace(/\/\* _TO_SVG_START_ \*\/[\s\S]*?\/\* _TO_SVG_END_ \*\//g, '');
       }
-      if (noES5Compat) {
-        strData = strData.replace(/\/\* _ES5_COMPAT_START_ \*\/[\s\S]*?\/\* _ES5_COMPAT_END_ \*\//g, '');
-      }
       if (noSVGImport) {
         strData = strData.replace(/\/\* _FROM_SVG_START_ \*\/[\s\S]*?\/\* _FROM_SVG_END_ \*\//g, '');
       }
@@ -119,16 +113,6 @@ function ifSpecifiedInclude(moduleName, fileName) {
   return ((isInIncludedList || includeAllModules) && !isInExcludedList) ? fileName : '';
 }
 
-function ifSpecifiedDependencyInclude(included, excluded, fileName) {
-  return (
-    (
-      (modulesToInclude.indexOf(included) > -1 || includeAllModules) &&
-      (modulesToExclude.indexOf(excluded) == -1))
-    ? fileName
-    : ''
-  );
-}
-
 function ifSpecifiedAMDInclude(amdLib) {
   var supportedLibraries = ['requirejs'];
   if (supportedLibraries.indexOf(amdLib) > -1) {
@@ -139,21 +123,20 @@ function ifSpecifiedAMDInclude(amdLib) {
 
 var filesToInclude = [
   'HEADER.js',
-
-  ifSpecifiedDependencyInclude('serialization', 'json', 'lib/json2.js'),
+  ifSpecifiedInclude('global', 'src/globalFabric.js'),
   ifSpecifiedInclude('gestures', 'lib/event.js'),
 
   'src/mixins/observable.mixin.js',
   'src/mixins/collection.mixin.js',
-
+  'src/mixins/shared_methods.mixin.js',
   'src/util/misc.js',
+  ifSpecifiedInclude('accessors', 'src/util/named_accessors.mixin.js'),
   'src/util/arc.js',
   'src/util/lang_array.js',
   'src/util/lang_object.js',
   'src/util/lang_string.js',
-  'src/util/lang_function.js',
   'src/util/lang_class.js',
-  'src/util/dom_event.js',
+  ifSpecifiedInclude('interaction', 'src/util/dom_event.js'),
   'src/util/dom_style.js',
   'src/util/dom_misc.js',
   'src/util/dom_request.js',
@@ -161,6 +144,7 @@ var filesToInclude = [
   'src/log.js',
 
   ifSpecifiedInclude('animation', 'src/util/animate.js'),
+  ifSpecifiedInclude('animation', 'src/util/animate_color.js'),
   //'src/util/animate.js',
   ifSpecifiedInclude('easing', 'src/util/anim_ease.js'),
 
@@ -203,7 +187,6 @@ var filesToInclude = [
   ifSpecifiedInclude('interaction', 'src/mixins/object_interactivity.mixin.js'),
 
   ifSpecifiedInclude('animation', 'src/mixins/animation.mixin.js'),
-  //'src/mixins/animation.mixin.js',
 
   'src/shapes/line.class.js',
   'src/shapes/circle.class.js',
@@ -213,30 +196,35 @@ var filesToInclude = [
   'src/shapes/polyline.class.js',
   'src/shapes/polygon.class.js',
   'src/shapes/path.class.js',
-  'src/shapes/path_group.class.js',
   'src/shapes/group.class.js',
+  ifSpecifiedInclude('interaction', 'src/shapes/active_selection.class.js'),
   'src/shapes/image.class.js',
 
   ifSpecifiedInclude('object_straightening', 'src/mixins/object_straightening.mixin.js'),
-
+  ifSpecifiedInclude('image_filters', 'src/filters/webgl_backend.class.js'),
+  ifSpecifiedInclude('image_filters', 'src/filters/2d_backend.class.js'),
   ifSpecifiedInclude('image_filters', 'src/filters/base_filter.class.js'),
+  ifSpecifiedInclude('image_filters', 'src/filters/colormatrix_filter.class.js'),
   ifSpecifiedInclude('image_filters', 'src/filters/brightness_filter.class.js'),
   ifSpecifiedInclude('image_filters', 'src/filters/convolute_filter.class.js'),
-  ifSpecifiedInclude('image_filters', 'src/filters/gradienttransparency_filter.class.js'),
   ifSpecifiedInclude('image_filters', 'src/filters/grayscale_filter.class.js'),
   ifSpecifiedInclude('image_filters', 'src/filters/invert_filter.class.js'),
-  ifSpecifiedInclude('image_filters', 'src/filters/mask_filter.class.js'),
   ifSpecifiedInclude('image_filters', 'src/filters/noise_filter.class.js'),
   ifSpecifiedInclude('image_filters', 'src/filters/pixelate_filter.class.js'),
-  ifSpecifiedInclude('image_filters', 'src/filters/removewhite_filter.class.js'),
-  ifSpecifiedInclude('image_filters', 'src/filters/sepia_filter.class.js'),
-  ifSpecifiedInclude('image_filters', 'src/filters/sepia2_filter.class.js'),
-  ifSpecifiedInclude('image_filters', 'src/filters/tint_filter.class.js'),
-  ifSpecifiedInclude('image_filters', 'src/filters/multiply_filter.class.js'),
-  ifSpecifiedInclude('image_filters', 'src/filters/blend_filter.class.js'),
+  ifSpecifiedInclude('image_filters', 'src/filters/removecolor_filter.class.js'),
+  ifSpecifiedInclude('image_filters', 'src/filters/filter_generator.js'),
+  ifSpecifiedInclude('image_filters', 'src/filters/blendcolor_filter.class.js'),
+  ifSpecifiedInclude('image_filters', 'src/filters/blendimage_filter.class.js'),
   ifSpecifiedInclude('image_filters', 'src/filters/resize_filter.class.js'),
+  ifSpecifiedInclude('image_filters', 'src/filters/contrast_filter.class.js'),
+  ifSpecifiedInclude('image_filters', 'src/filters/saturate_filter.class.js'),
+  ifSpecifiedInclude('image_filters', 'src/filters/blur_filter.class.js'),
+  ifSpecifiedInclude('image_filters', 'src/filters/gamma_filter.class.js'),
+  ifSpecifiedInclude('image_filters', 'src/filters/composed_filter.class.js'),
+  ifSpecifiedInclude('image_filters', 'src/filters/hue_rotation.class.js'),
 
   ifSpecifiedInclude('text', 'src/shapes/text.class.js'),
+  ifSpecifiedInclude('text', 'src/mixins/text_style.mixin.js'),
 
   ifSpecifiedInclude('itext', 'src/shapes/itext.class.js'),
   ifSpecifiedInclude('itext', 'src/mixins/itext_behavior.mixin.js'),
@@ -246,9 +234,6 @@ var filesToInclude = [
 
   ifSpecifiedInclude('textbox', 'src/shapes/textbox.class.js'),
   ifSpecifiedInclude('textbox', 'src/mixins/textbox_behavior.mixin.js'),
-  ifSpecifiedInclude('textbox', 'src/mixins/textbox_click_behavior.mixin.js'),
-
-  ifSpecifiedInclude('node', 'src/node.js'),
 
   ifSpecifiedAMDInclude(amdLib)
 ];
@@ -260,31 +245,6 @@ if (buildMinified) {
     exec('uglifyjs -nc ' + amdUglifyFlags + filesToInclude[i] + ' > tmp/' + fileNameWithoutSlashes);
   }
 }
-else if (buildSh) {
-
-  var filesStr = filesToInclude.join(' ');
-  var isBasicBuild = modulesToInclude.length === 0;
-
-  var minFilesStr = filesToInclude
-    .filter(function(f) { return f !== '' })
-    .map(function(fileName) {
-      return 'tmp/' + fileName.replace(/\//g, '^');
-    })
-    .join(' ');
-
-  var fileName = isBasicBuild ? 'fabric' : modulesToInclude.join(',');
-
-  var escapedHeader = distFileContents.replace(/`/g, '\\`');
-  var path = '../fabricjs.com/build/files/' + fileName + '.js';
-  fs.appendFile('build.sh',
-    'echo "' + escapedHeader + '" > ' + path + ' && cat ' +
-    filesStr + ' >> ' + path + '\n');
-
-  path = '../fabricjs.com/build/files/' + fileName + '.min.js';
-  fs.appendFile('build.sh',
-    'echo "' + escapedHeader + '" > ' + path + ' && cat ' +
-    minFilesStr + ' >> ' + path + '\n')
-}
 else {
   // change the current working directory
   process.chdir(distributionPath);
@@ -294,6 +254,9 @@ else {
       if (err) {
         console.log(err);
         throw err;
+      }
+      if (buildFast) {
+        process.exit(0);
       }
 
       // add js wrapping in AMD closure for requirejs if necessary
@@ -310,6 +273,7 @@ else {
       exec(mininfierCmd, function (error, output) {
         if (error) {
           console.error('Minification failed using', minifier, 'with', mininfierCmd);
+          console.error('Minifier error output:\n' + error);
           process.exit(1);
         }
         console.log('Minified using', minifier, 'to ' + distributionPath + 'fabric.min.js');
